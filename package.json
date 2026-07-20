@@ -12,6 +12,14 @@
     "kjv"
   ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rickyeescobar/bible-tui-footer.git"
+  },
+  "homepage": "https://github.com/rickyeescobar/bible-tui-footer#readme",
+  "bugs": {
+    "url": "https://github.com/rickyeescobar/bible-tui-footer/issues"
+  },
   "files": [
     "dist",
     "data",

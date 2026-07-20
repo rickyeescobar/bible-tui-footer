@@ -22,10 +22,23 @@ The highlighted letter is the word's optimal recognition position, kept at a sta
 
 ## Install
 
-From this checkout:
+From npm:
+
+```bash
+pi install npm:bible-tui-footer
+```
+
+From git (builds locally via the package's prepare script):
+
+```bash
+pi install git:github.com/rickyeescobar/bible-tui-footer
+```
+
+From a local checkout:
 
 ```bash
 pnpm install
+pnpm build
 pi install /absolute/path/to/bible-tui-footer
 ```
 
@@ -34,6 +47,8 @@ For a temporary development run:
 ```bash
 pi -e ./extensions/index.ts
 ```
+
+Add `-l` to any `pi install` to write the package to project settings (`.pi/settings.json`) instead of user settings.
 
 Bible TUI Footer starts automatically when an agent starts and disappears when the agent settles.
 
