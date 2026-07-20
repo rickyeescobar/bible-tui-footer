@@ -11,40 +11,37 @@ export type PlaybackScope = Scope.Closeable
 
 const NANOS_PER_MILLI = 1_000_000n
 
-/**
- * Runs against monotonic deadlines so render and scheduler overhead do not
- * accumulate. Large stalls reset the deadline instead of flashing catch-up words.
- */
-const playbackLoop = Effect.fn("playbackLoop")(function*(
-  reader: Reader,
-  onFrame: (frame: RSVPFrame) => void,
-  frame: RSVPFrame,
-  previousDeadline: bigint,
-): Effect.fn.Return<void, BibleDataError> {
-  yield* Effect.sync(() => onFrame(frame))
-
-  const delayNanos = BigInt(frame.delayMs) * NANOS_PER_MILLI
-  const candidateDeadline = previousDeadline + delayNanos
-  const now = yield* Clock.currentTimeNanos
-  const deadline = now > candidateDeadline + delayNanos * 4n
-    ? now + delayNanos
-    : candidateDeadline
-  const remaining = deadline - now
-  if (remaining > 0n) yield* Effect.sleep(Duration.nanos(remaining))
-
-  const next = yield* reader.advance
-  return yield* playbackLoop(reader, onFrame, next, deadline)
-})
-
 export const startPlayback = Effect.fn("startPlayback")(function*(
   reader: Reader,
   onFrame: (frame: RSVPFrame) => void,
   onError: (error: BibleDataError) => void,
 ): Effect.fn.Return<PlaybackScope> {
   const scope = yield* Scope.make()
-  const frame = yield* reader.current
-  const startedAt = yield* Clock.currentTimeNanos
-  yield* playbackLoop(reader, onFrame, frame, startedAt).pipe(
+  let frame = yield* reader.current
+  let deadline = yield* Clock.currentTimeNanos
+
+  /**
+   * Runs against monotonic deadlines so render and scheduler overhead do not
+   * accumulate. Large stalls reset the deadline instead of flashing catch-up
+   * words. Iterated with Effect.forever and untraced because generator
+   * self-recursion and per-word spans both grow without bound over a session.
+   */
+  const step = Effect.fnUntraced(function*(): Effect.fn.Return<void, BibleDataError> {
+    yield* Effect.sync(() => onFrame(frame))
+
+    const delayNanos = BigInt(frame.delayMs) * NANOS_PER_MILLI
+    const candidateDeadline = deadline + delayNanos
+    const now = yield* Clock.currentTimeNanos
+    deadline = now > candidateDeadline + delayNanos * 4n
+      ? now + delayNanos
+      : candidateDeadline
+    const remaining = deadline - now
+    if (remaining > 0n) yield* Effect.sleep(Duration.nanos(remaining))
+
+    frame = yield* reader.advance
+  })
+
+  yield* Effect.forever(step()).pipe(
     Effect.catch((error) => Effect.sync(() => onError(error))),
     Effect.forkIn(scope),
   )

@@ -41,6 +41,7 @@ export default function bibleTuiFooter(pi: ExtensionAPI) {
   const persistenceLock = Semaphore.makeUnsafe(1)
   const playbackLock = Semaphore.makeUnsafe(1)
 
+  // Memoizes the first call's promise; that call's ctx is the one a load-failure notification reaches.
   const initialize = (ctx: ExtensionContext): Promise<void> => {
     if (initialization !== undefined) return initialization
 
@@ -84,7 +85,7 @@ export default function bibleTuiFooter(pi: ExtensionAPI) {
     closePlayback().pipe(
       Effect.andThen(persist().pipe(
         Effect.catch((error) => Effect.sync(() => {
-          ctx.ui.notify(`Bible TUI Footer could not save progress: ${String(error)}`, "warning")
+          ctx.ui.notify(`Bible TUI Footer could not save progress: ${error.message}`, "warning")
         })),
       )),
       Effect.andThen(Effect.sync(() => {
@@ -156,12 +157,16 @@ export default function bibleTuiFooter(pi: ExtensionAPI) {
   })
 
   pi.on("agent_settled", async (_event, ctx) => {
-    await run(stop(ctx, true))
+    await run(stop(ctx, true).pipe(
+      Effect.catchCause((cause) => Effect.sync(() => {
+        ctx.ui.notify(`Bible TUI Footer failed to stop: ${Cause.pretty(cause)}`, "error")
+      })),
+    ))
   })
 
   pi.on("session_shutdown", async (_event, ctx) => {
     active = false
-    await run(stop(ctx, true))
+    await run(stop(ctx, true).pipe(Effect.ignoreCause))
     await runtime.dispose()
   })
 

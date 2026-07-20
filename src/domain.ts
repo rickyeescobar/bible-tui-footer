@@ -1,9 +1,9 @@
 import * as Data from "effect/Data"
 import * as Schema from "effect/Schema"
 
-const PositiveInt = Schema.Int.check(Schema.isGreaterThan(0))
-const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
-export const Wpm = Schema.Int.check(Schema.isBetween({ minimum: 100, maximum: 1_200 }))
+export const PositiveInt = Schema.Int.check(Schema.isGreaterThan(0)).annotate({ title: "PositiveInt" })
+export const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)).annotate({ title: "NonNegativeInt" })
+export const Wpm = Schema.Int.check(Schema.isBetween({ minimum: 100, maximum: 1_200 })).annotate({ title: "Wpm" })
 
 export class Verse extends Schema.Class<Verse>("bible-tui-footer/Verse")({
   book: Schema.NonEmptyString,
@@ -34,19 +34,23 @@ export class BibleManifest extends Schema.Class<BibleManifest>("bible-tui-footer
   books: Schema.NonEmptyArray(BookInfo),
 }) {}
 
-export type BookVerse = readonly [
-  chapter: number,
-  verse: number,
-  text: string,
-]
+export const BookVerse = Schema.Tuple([
+  PositiveInt,
+  PositiveInt,
+  Schema.NonEmptyString,
+])
+export type BookVerse = typeof BookVerse.Type
 
-/** Internal, already-validated data for the one book retained by the reader. */
+/**
+ * Internal, already-validated data for the one book retained by the reader.
+ * The verses array field does not deep-compare, so equality is by identity.
+ */
 export class BibleBook extends Data.Class<{
   readonly info: BookInfo
   readonly verses: ReadonlyArray<BookVerse>
 }> {}
 
-/** Internal render value with Effect structural equality and hashing. */
+/** Internal render value; all-primitive fields give exact Effect structural equality and hashing. */
 export class RSVPFrame extends Data.Class<{
   readonly word: string
   readonly pivotIndex: number

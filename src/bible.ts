@@ -4,24 +4,15 @@ import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import { join } from "node:path"
-import { BibleBook, BibleManifest, type BookVerse } from "./domain.js"
+import { BibleBook, BibleManifest, BookVerse, NonNegativeInt } from "./domain.js"
 import { BibleDataError } from "./errors.js"
 
-const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
-const PositiveInt = Schema.Int.check(Schema.isGreaterThan(0))
-
-const BookVerseSchema = Schema.Tuple([
-  PositiveInt,
-  PositiveInt,
-  Schema.NonEmptyString,
-])
-
-const BookFileJsonSchema = Schema.fromJsonString(Schema.Struct({
+export const BookFileJsonSchema = Schema.fromJsonString(Schema.Struct({
   bookIndex: NonNegativeInt,
-  verses: Schema.NonEmptyArray(BookVerseSchema),
+  verses: Schema.NonEmptyArray(BookVerse),
 }))
 
-const ManifestJsonSchema = Schema.fromJsonString(BibleManifest)
+export const ManifestJsonSchema = Schema.fromJsonString(BibleManifest)
 
 export class BibleLibrary extends Context.Service<BibleLibrary, {
   readonly manifest: BibleManifest
@@ -102,7 +93,7 @@ export const makeBibleLibrary = Effect.fn("makeBibleLibrary")(function*(
       })
     }
 
-    return new BibleBook({ info, verses: data.verses as ReadonlyArray<BookVerse> })
+    return new BibleBook({ info, verses: data.verses })
   })
 
   return BibleLibrary.of({ manifest, loadBook })

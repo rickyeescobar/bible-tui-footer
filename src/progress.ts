@@ -24,6 +24,7 @@ export const loadProgress = Effect.fn("loadProgress")(function*(
   if (Option.isNone(source)) return defaultProgress
 
   return yield* Schema.decodeUnknownEffect(ProgressJsonSchema)(source.value).pipe(
+    Effect.tapError((cause) => Effect.logWarning(`Ignoring corrupt progress at ${path}`, cause)),
     Effect.orElseSucceed(() => defaultProgress),
   )
 })

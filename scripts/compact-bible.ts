@@ -6,16 +6,14 @@ import * as HashMap from "effect/HashMap"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import { join, resolve } from "node:path"
-import { BibleManifest, BookInfo, type BookVerse } from "../src/domain.js"
+import { BookFileJsonSchema, ManifestJsonSchema } from "../src/bible.js"
+import { BibleManifest, BookInfo, PositiveInt, type BookVerse } from "../src/domain.js"
 import { writeFileStringAtomic } from "../src/files.js"
 import { wordsOf } from "../src/rsvp.js"
 
 class BuildDataError extends Schema.TaggedErrorClass<BuildDataError>()("BuildDataError", {
   message: Schema.String,
 }) {}
-
-const PositiveInt = Schema.Int.check(Schema.isGreaterThan(0))
-const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 
 const SourceVerseSchema = Schema.Struct({
   book: Schema.NonEmptyString,
@@ -27,17 +25,6 @@ const SourceVerseSchema = Schema.Struct({
 const SourceBibleJsonSchema = Schema.fromJsonString(Schema.Struct({
   verses: Schema.NonEmptyArray(SourceVerseSchema),
 }))
-
-const BookFileJsonSchema = Schema.fromJsonString(Schema.Struct({
-  bookIndex: NonNegativeInt,
-  verses: Schema.NonEmptyArray(Schema.Tuple([
-    PositiveInt,
-    PositiveInt,
-    Schema.NonEmptyString,
-  ])),
-}))
-
-const ManifestJsonSchema = Schema.fromJsonString(BibleManifest)
 
 const program = Effect.gen(function*() {
   const [inputArgument, outputArgument] = process.argv.slice(2)
