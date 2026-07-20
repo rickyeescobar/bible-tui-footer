@@ -3,7 +3,6 @@ node_modules/
 .pnpm-store/
 
 # Generated build and test output
-dist/
 coverage/
 *.tsbuildinfo
 *.tgz

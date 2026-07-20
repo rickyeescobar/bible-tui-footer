@@ -7,6 +7,13 @@ settings:
 importers:
 
   .:
+    dependencies:
+      '@effect/platform-node':
+        specifier: 4.0.0-beta.99
+        version: 4.0.0-beta.99(effect@4.0.0-beta.99)(ioredis@5.11.1)
+      effect:
+        specifier: 4.0.0-beta.99
+        version: 4.0.0-beta.99
     devDependencies:
       '@earendil-works/pi-coding-agent':
         specifier: ^0.80.10
@@ -14,9 +21,6 @@ importers:
       '@earendil-works/pi-tui':
         specifier: ^0.80.10
         version: 0.80.10
-      '@effect/platform-node':
-        specifier: 4.0.0-beta.99
-        version: 4.0.0-beta.99(effect@4.0.0-beta.99)(ioredis@5.11.1)
       '@effect/tsgo':
         specifier: 0.24.2
         version: 0.24.2
@@ -26,12 +30,6 @@ importers:
       '@types/node':
         specifier: 24.13.3
         version: 24.13.3
-      effect:
-        specifier: 4.0.0-beta.99
-        version: 4.0.0-beta.99
-      esbuild:
-        specifier: 0.28.1
-        version: 0.28.1
       tsx:
         specifier: 4.23.1
         version: 4.23.1
