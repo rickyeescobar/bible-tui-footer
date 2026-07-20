@@ -82,7 +82,7 @@ Writes are atomic and occur when the agent settles, the session shuts down, or a
 
 ## Development
 
-Bible TUI Footer currently targets Node.js 24.18 LTS, pnpm 11.15, TypeScript 7, and Effect 4 beta. The checked-in `.nvmrc` is an optional convenience for contributors who use nvm.
+Bible TUI Footer supports the same Node.js range as Pi (22.19 or later) and is developed against Node 24 LTS, pnpm 11.15, TypeScript 7, and Effect 4 beta. The checked-in `.nvmrc` is an optional convenience for contributors who use nvm.
 
 ```bash
 pnpm install
