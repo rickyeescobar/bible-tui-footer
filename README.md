@@ -113,6 +113,7 @@ The importer validates the input with Effect Schema, groups verses into per-book
 ## Architecture
 
 - `extensions/index.ts` — thin Pi lifecycle and synchronous rendering adapter
+- `src/command.ts` — the `/bible` grammar: a `BibleCommand` tagged enum and a parser that fails syntax errors as typed `UsageError`s
 - `src/controller.ts` — `FooterController` service and Layer owning playback lifecycle, command handling, and persistence policy
 - `src/domain.ts` — Effect Schema classes and immutable Data classes
 - `src/reader.ts` — single-book/verse caching and an Effect `SynchronizedRef`/`Option`/Data reader state machine

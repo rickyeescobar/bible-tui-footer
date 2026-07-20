@@ -78,12 +78,12 @@ describe("FooterController", () => {
       assert.strictEqual((yield* loadProgress(statePath)).wpm, 700)
     }).pipe(Effect.scoped, withFileSystem))
 
-  it.effect("rejects a malformed speed", () =>
+  it.effect("fails a malformed speed with usage", () =>
     Effect.gen(function*() {
       const { controller } = yield* makeTestController()
       const { hooks } = makeCommandHooks()
-      const notice = yield* controller.handleCommand("speed fast", hooks)
-      assert.strictEqual(Option.getOrThrow(notice).severity, "error")
+      const error = yield* Effect.flip(controller.handleCommand("speed fast", hooks))
+      assert.strictEqual(error._tag, "UsageError")
     }).pipe(Effect.scoped, withFileSystem))
 
   it.effect("moves with goto, emits the frame, and persists", () =>

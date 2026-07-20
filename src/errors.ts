@@ -13,3 +13,7 @@ export class ProgressError extends Schema.TaggedErrorClass<ProgressError>()("Pro
 export class ReaderError extends Schema.TaggedErrorClass<ReaderError>()("ReaderError", {
   message: Schema.String,
 }) {}
+
+export class UsageError extends Schema.TaggedErrorClass<UsageError>()("UsageError", {
+  message: Schema.String,
+}) {}

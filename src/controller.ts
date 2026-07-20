@@ -9,8 +9,9 @@ import * as Semaphore from "effect/Semaphore"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { BibleLibrary } from "./bible.js"
+import { parseCommand } from "./command.js"
 import type { RSVPFrame } from "./domain.js"
-import type { BibleDataError, ProgressError, ReaderError } from "./errors.js"
+import type { BibleDataError, ProgressError, ReaderError, UsageError } from "./errors.js"
 import { startPlayback, stopPlayback, type PlaybackScope } from "./playback.js"
 import { loadProgress, saveProgress } from "./progress.js"
 import { makeReader } from "./reader.js"
@@ -45,7 +46,7 @@ export class FooterController extends Context.Service<FooterController, {
   readonly handleCommand: (
     input: string,
     hooks: CommandHooks,
-  ) => Effect.Effect<Option.Option<Notice>, BibleDataError | ProgressError | ReaderError>
+  ) => Effect.Effect<Option.Option<Notice>, BibleDataError | ProgressError | ReaderError | UsageError>
 }>()("bible-tui-footer/FooterController") {
   static readonly layer = Layer.unwrap(Effect.gen(function*() {
     const directory = yield* stateHome
@@ -58,9 +59,6 @@ export class FooterController extends Context.Service<FooterController, {
 
 const info = (message: string): Option.Option<Notice> =>
   Option.some({ message, severity: "info" })
-
-const usage = (message: string): Option.Option<Notice> =>
-  Option.some({ message, severity: "error" })
 
 export const makeController = Effect.fn("makeController")(function*(
   statePath: string,
@@ -105,36 +103,31 @@ export const makeController = Effect.fn("makeController")(function*(
   const handleCommand = Effect.fn("FooterController.handleCommand")(function*(
     input: string,
     hooks: CommandHooks,
-  ): Effect.fn.Return<Option.Option<Notice>, BibleDataError | ProgressError | ReaderError> {
-    const [command = "status", ...rest] = input.trim().split(/\s+/)
-    const argument = rest.join(" ")
-
-    switch (command.toLowerCase()) {
-      case "on":
+  ): Effect.fn.Return<Option.Option<Notice>, BibleDataError | ProgressError | ReaderError | UsageError> {
+    const command = yield* parseCommand(input)
+    switch (command._tag) {
+      case "On":
         yield* reader.setEnabled(true)
         yield* persist
         return info("Bible TUI Footer enabled")
-      case "off":
+      case "Off":
         yield* reader.setEnabled(false)
         yield* closePlayback
         yield* persist
         yield* Effect.sync(hooks.onHide)
         return info("Bible TUI Footer disabled")
-      case "speed": {
-        const requested = Number(argument)
-        if (!Number.isFinite(requested)) return usage("Usage: /bible speed <100-1200>")
-        const wpm = yield* reader.setWpm(requested)
+      case "Speed": {
+        const wpm = yield* reader.setWpm(command.wpm)
         yield* persist
         return info(`Bible TUI Footer speed set to ${wpm} WPM`)
       }
-      case "goto": {
-        if (!argument) return usage("Usage: /bible goto <book chapter:verse>")
-        const next = yield* reader.goto(argument)
+      case "Goto": {
+        const next = yield* reader.goto(command.reference)
         yield* Effect.sync(() => hooks.onFrame(next))
         yield* persist
         return info(`Bible TUI Footer moved to ${next.reference}`)
       }
-      case "restart": {
+      case "Restart": {
         const confirmed = yield* hooks.confirmRestart
         if (!confirmed) return Option.none()
         const next = yield* reader.reset
@@ -142,14 +135,12 @@ export const makeController = Effect.fn("makeController")(function*(
         yield* persist
         return info("Bible TUI Footer restarted at Genesis 1:1")
       }
-      case "status": {
+      case "Status": {
         const [current, progress] = yield* Effect.all([reader.current, reader.progress])
         return info(
           `${progress.enabled ? "On" : "Off"} · ${current.reference} · ${progress.wpm} WPM · ${progress.wordsRead.toLocaleString()} words read`,
         )
       }
-      default:
-        return usage("Usage: /bible [on|off|speed <wpm>|goto <reference>|restart|status]")
     }
   })
 
