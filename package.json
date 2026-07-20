@@ -27,7 +27,7 @@
   },
   "scripts": {
     "build": "esbuild extensions/index.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/index.js --external:@earendil-works/pi-coding-agent --external:@earendil-works/pi-tui --legal-comments=eof",
-    "build:data": "tsx scripts/compact-bible.ts ../d4ilybread/data/kjv-bible.json data",
+    "build:data": "tsx scripts/compact-bible.ts",
     "check": "tsc --noEmit",
     "test": "vitest run",
     "prepare": "effect-tsgo patch && npm run build",

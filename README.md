@@ -77,17 +77,38 @@ pnpm test
 pnpm build
 ```
 
-Rebuild the compact dataset from the parsed `d4ilybread` JSON:
+The generated scripture data is included in the package; users do not need to build it. Maintainers can regenerate it from a normalized JSON export derived from the Project Gutenberg text:
 
 ```bash
-pnpm build:data
+pnpm build:data -- input.json data
 ```
 
-Or provide explicit paths:
+### Scripture import format
 
-```bash
-pnpm exec tsx scripts/compact-bible.ts input.json data
+The import file must contain a non-empty `verses` array with one object per verse:
+
+```json
+{
+  "verses": [
+    {
+      "book": "Genesis",
+      "chapter": 1,
+      "verse": 1,
+      "text": "In the beginning God created the heaven and the earth."
+    },
+    {
+      "book": "Genesis",
+      "chapter": 1,
+      "verse": 2,
+      "text": "And the earth was without form, and void..."
+    }
+  ]
+}
 ```
+
+`book` and `text` must be non-empty strings; `chapter` and `verse` must be positive integers. Entries should be in canonical Bible order and verse order. The first appearance of each book determines its order in the generated manifest. Gutenberg's raw text must be parsed into this normalized representation before running the import.
+
+The importer validates the input with Effect Schema, groups verses into per-book files, and calculates book offsets, verse totals, and the global word count.
 
 ## Architecture
 
@@ -107,7 +128,7 @@ All persisted and bundled JSON is decoded and encoded with Effect Schema. Domain
 
 ## Scripture data
 
-The bundled text is the King James Version parsed from the project's existing `d4ilybread` dataset. See [NOTICE](NOTICE) before redistribution, particularly for jurisdictions where rights in the Authorized Version may differ.
+The bundled text is derived from the Project Gutenberg King James Version. See [NOTICE](NOTICE) for its exact source and jurisdiction-specific redistribution considerations.
 
 ## License
 
