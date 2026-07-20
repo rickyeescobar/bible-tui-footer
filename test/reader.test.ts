@@ -1,14 +1,14 @@
 import { assert, describe, it } from "@effect/vitest"
-import { Effect } from "effect"
-import { Bible, Verse, defaultProgress } from "../src/domain.js"
+import * as Effect from "effect/Effect"
+import { Bible, defaultProgress } from "../src/domain.js"
 import { makeReader } from "../src/reader.js"
 
 const bible = new Bible({
   books: ["Genesis", "John"],
   wordCount: 8,
   verses: [
-    new Verse({ book: "Genesis", chapter: 1, verse: 1, text: "In the beginning" }),
-    new Verse({ book: "John", chapter: 1, verse: 1, text: "In the beginning was the Word" }),
+    [0, 1, 1, "In the beginning"],
+    [1, 1, 1, "In the beginning was the Word"],
   ],
 })
 

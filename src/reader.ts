@@ -1,5 +1,8 @@
-import { Data, Effect, HashMap, Option, Ref } from "effect"
-import { Bible, RSVPFrame, SavedProgress } from "./domain.js"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import * as Option from "effect/Option"
+import * as Ref from "effect/Ref"
+import { Bible, RSVPFrame, SavedProgress, Verse } from "./domain.js"
 import { ReaderError } from "./errors.js"
 import { makeFrame, wordsOf } from "./rsvp.js"
 
@@ -31,25 +34,31 @@ class RuntimeProgress extends Data.Class<{
 /** Holds a single tokenized verse, avoiding repeated regex work without unbounded caching. */
 class ReaderState extends Data.Class<{
   readonly progress: RuntimeProgress
+  readonly verse: Verse
   readonly words: ReadonlyArray<string>
 }> {}
 
-const referenceKey = (book: string, chapter: number, verse: number): string =>
-  `${book.trim().toLowerCase()}:${chapter}:${verse}`
+const verseAt = (bible: Bible, index: number): Verse => {
+  const [bookIndex, chapter, verse, text] = bible.verses[index]!
+  return new Verse({ book: bible.books[bookIndex]!, chapter, verse, text })
+}
 
 const toSavedProgress = (progress: RuntimeProgress): SavedProgress =>
   new SavedProgress(progress)
 
-const stateAt = (bible: Bible, progress: RuntimeProgress): ReaderState =>
-  new ReaderState({
+const stateAt = (bible: Bible, progress: RuntimeProgress): ReaderState => {
+  const verse = verseAt(bible, progress.verseIndex)
+  return new ReaderState({
     progress,
-    words: wordsOf(bible.verses[progress.verseIndex]!.text),
+    verse,
+    words: wordsOf(verse.text),
   })
+}
 
 const normalize = (bible: Bible, saved: SavedProgress): RuntimeProgress => {
   const verseIndex = Math.max(0, Math.min(bible.verses.length - 1, saved.verseIndex))
-  const verse = bible.verses[verseIndex]!
-  const wordIndex = Math.max(0, Math.min(Math.max(0, wordsOf(verse.text).length - 1), saved.wordIndex))
+  const text = bible.verses[verseIndex]![3]
+  const wordIndex = Math.max(0, Math.min(Math.max(0, wordsOf(text).length - 1), saved.wordIndex))
   return new RuntimeProgress({ ...saved, verseIndex, wordIndex })
 }
 
@@ -57,7 +66,7 @@ const frameAt = (bible: Bible, state: ReaderState): RSVPFrame => {
   const { progress, words } = state
   const word = words[progress.wordIndex] ?? words[0] ?? ""
   return makeFrame({
-    verse: bible.verses[progress.verseIndex]!,
+    verse: state.verse,
     word,
     isVerseEnd: progress.wordIndex >= words.length - 1,
     verseIndex: progress.verseIndex,
@@ -90,6 +99,25 @@ const advanceState = (bible: Bible, state: ReaderState): ReaderState => {
   }))
 }
 
+const findReferenceIndex = (
+  bible: Bible,
+  requested: ParsedReference,
+  verse: number,
+): Option.Option<number> => {
+  const requestedBook = requested.book.trim().toLowerCase()
+  for (let index = 0; index < bible.verses.length; index++) {
+    const [bookIndex, chapter, verseNumber] = bible.verses[index]!
+    if (
+      chapter === requested.chapter
+      && verseNumber === verse
+      && bible.books[bookIndex]?.toLowerCase() === requestedBook
+    ) {
+      return Option.some(index)
+    }
+  }
+  return Option.none()
+}
+
 const parseReference = (reference: string): Option.Option<ParsedReference> => {
   const match = reference.trim().match(/^(.+?)\s+(\d+)(?::(\d+))?$/)
   if (!match) return Option.none()
@@ -113,12 +141,6 @@ export const makeReader = Effect.fn("makeReader")(function*(
 ): Effect.fn.Return<Reader> {
   const initialProgress = normalize(bible, saved)
   const state = yield* Ref.make(stateAt(bible, initialProgress))
-  const referenceIndex = HashMap.fromIterable(
-    bible.verses.map((verse, index) => [
-      referenceKey(verse.book, verse.chapter, verse.verse),
-      index,
-    ] as const),
-  )
 
   const current = Ref.get(state).pipe(Effect.map((readerState) => frameAt(bible, readerState)))
   const advance = Ref.modify(state, (readerState) => {
@@ -155,7 +177,7 @@ export const makeReader = Effect.fn("makeReader")(function*(
 
     const requested = parsed.value
     const verse = Option.getOrElse(requested.verse, () => 1)
-    const index = HashMap.get(referenceIndex, referenceKey(requested.book, requested.chapter, verse))
+    const index = findReferenceIndex(bible, requested, verse)
     if (Option.isNone(index)) {
       return yield* new ReaderError({ message: `Passage not found: ${reference}` })
     }

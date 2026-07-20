@@ -1,6 +1,8 @@
-import { NodeFileSystem } from "@effect/platform-node"
+import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
 import { assert, describe, it } from "@effect/vitest"
-import { Effect, Equal, FileSystem } from "effect"
+import * as Effect from "effect/Effect"
+import * as Equal from "effect/Equal"
+import * as FileSystem from "effect/FileSystem"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
 import { loadBible } from "../src/bible.js"
@@ -26,7 +28,7 @@ describe("Schema validation", () => {
       const path = yield* makeTemporaryFile("bible.json")
       yield* fs.writeFileString(
         path,
-        JSON.stringify({ books: ["Genesis"], verses: [[1, 1, 1, "In the beginning"]] }),
+        JSON.stringify({ books: ["Genesis"], wordCount: 3, verses: [[1, 1, 1, "In the beginning"]] }),
       )
       const exit = yield* Effect.exit(loadBible(path))
       assert.strictEqual(exit._tag, "Failure")

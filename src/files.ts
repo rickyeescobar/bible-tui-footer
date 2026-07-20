@@ -1,4 +1,6 @@
-import { Effect, FileSystem, type PlatformError } from "effect"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import type * as PlatformError from "effect/PlatformError"
 import { dirname } from "node:path"
 
 /** Writes beside the destination and atomically renames on successful completion. */

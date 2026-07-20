@@ -1,4 +1,4 @@
-import { Schema } from "effect"
+import * as Schema from "effect/Schema"
 
 export class BibleDataError extends Schema.TaggedErrorClass<BibleDataError>()("BibleDataError", {
   message: Schema.String,

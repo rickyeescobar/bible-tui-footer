@@ -1,4 +1,5 @@
-import { Data, Schema } from "effect"
+import * as Data from "effect/Data"
+import * as Schema from "effect/Schema"
 
 const PositiveInt = Schema.Int.check(Schema.isGreaterThan(0))
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
@@ -19,9 +20,16 @@ export class SavedProgress extends Schema.Class<SavedProgress>("bible-tui-footer
   wpm: Wpm,
 }) {}
 
-/** Internal, already-validated aggregate with Effect structural equality and hashing. */
+export type CompactVerse = readonly [
+  bookIndex: number,
+  chapter: number,
+  verse: number,
+  text: string,
+]
+
+/** Internal, already-validated aggregate retaining the compact on-disk representation. */
 export class Bible extends Data.Class<{
-  readonly verses: ReadonlyArray<Verse>
+  readonly verses: ReadonlyArray<CompactVerse>
   readonly books: ReadonlyArray<string>
   readonly wordCount: number
 }> {}

@@ -1,7 +1,13 @@
-import { NodeFileSystem, NodeRuntime } from "@effect/platform-node"
-import { Effect, FileSystem, HashMap, Option, Schema } from "effect"
+import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
+import * as NodeRuntime from "@effect/platform-node/NodeRuntime"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as HashMap from "effect/HashMap"
+import * as Option from "effect/Option"
+import * as Schema from "effect/Schema"
 import { resolve } from "node:path"
 import { writeFileStringAtomic } from "../src/files.js"
+import { wordsOf } from "../src/rsvp.js"
 
 class BuildDataError extends Schema.TaggedErrorClass<BuildDataError>()("BuildDataError", {
   message: Schema.String,
@@ -23,6 +29,7 @@ const SourceBibleJsonSchema = Schema.fromJsonString(Schema.Struct({
 
 const CompactBibleJsonSchema = Schema.fromJsonString(Schema.Struct({
   books: Schema.NonEmptyArray(Schema.NonEmptyString),
+  wordCount: PositiveInt,
   verses: Schema.NonEmptyArray(Schema.Tuple([
     NonNegativeInt,
     PositiveInt,
@@ -58,7 +65,8 @@ const program = Effect.gen(function* () {
       }),
     ))
 
-  const encoded = yield* Schema.encodeUnknownEffect(CompactBibleJsonSchema)({ books, verses })
+  const wordCount = data.verses.reduce((total, verse) => total + wordsOf(verse.text).length, 0)
+  const encoded = yield* Schema.encodeUnknownEffect(CompactBibleJsonSchema)({ books, wordCount, verses })
   yield* writeFileStringAtomic(output, encoded)
   yield* Effect.logInfo(`Wrote ${verses.length} verses from ${books.length} books to ${output}`)
 })

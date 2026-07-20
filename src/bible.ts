@@ -1,7 +1,8 @@
-import { Effect, FileSystem, Schema } from "effect"
-import { Bible, Verse } from "./domain.js"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Schema from "effect/Schema"
+import { Bible } from "./domain.js"
 import { BibleDataError } from "./errors.js"
-import { wordsOf } from "./rsvp.js"
 
 const NonNegativeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 const PositiveInt = Schema.Int.check(Schema.isGreaterThan(0))
@@ -15,6 +16,7 @@ const CompactVerseSchema = Schema.Tuple([
 
 const CompactBibleSchema = Schema.Struct({
   books: Schema.NonEmptyArray(Schema.NonEmptyString),
+  wordCount: PositiveInt,
   verses: Schema.NonEmptyArray(CompactVerseSchema),
 })
 
@@ -35,22 +37,18 @@ export const loadBible = Effect.fn("loadBible")(function*(
     Effect.mapError((cause) => new BibleDataError({ message: "Bible data failed schema validation", cause })),
   )
 
-  const verses: Array<Verse> = []
-  let wordCount = 0
-
-  for (const [bookIndex, chapter, verseNumber, text] of data.verses) {
-    const book = data.books[bookIndex]
-    if (book === undefined) {
+  for (const [bookIndex, chapter, verseNumber] of data.verses) {
+    if (data.books[bookIndex] === undefined) {
       return yield* new BibleDataError({
         message: `Bible verse references missing book index ${bookIndex}`,
         cause: { bookIndex, chapter, verse: verseNumber },
       })
     }
-
-    const verse = new Verse({ book, chapter, verse: verseNumber, text })
-    verses.push(verse)
-    wordCount += wordsOf(text).length
   }
 
-  return new Bible({ books: data.books, verses, wordCount })
+  return new Bible({
+    books: data.books,
+    verses: data.verses,
+    wordCount: data.wordCount,
+  })
 })

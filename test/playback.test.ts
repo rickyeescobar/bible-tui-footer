@@ -1,14 +1,15 @@
 import { assert, it } from "@effect/vitest"
-import { Duration, Effect } from "effect"
-import { TestClock } from "effect/testing"
-import { Bible, Verse, defaultProgress } from "../src/domain.js"
+import * as Duration from "effect/Duration"
+import * as Effect from "effect/Effect"
+import * as TestClock from "effect/testing/TestClock"
+import { Bible, defaultProgress } from "../src/domain.js"
 import { startPlayback, stopPlayback } from "../src/playback.js"
 import { makeReader } from "../src/reader.js"
 
 const bible = new Bible({
   books: ["Genesis"],
   wordCount: 3,
-  verses: [new Verse({ book: "Genesis", chapter: 1, verse: 1, text: "In the beginning" })],
+  verses: [[0, 1, 1, "In the beginning"]],
 })
 
 it.effect("advances playback according to the Effect clock", () =>

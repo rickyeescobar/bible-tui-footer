@@ -92,13 +92,13 @@ pnpm exec tsx scripts/compact-bible.ts input.json data/kjv.json
 
 - `extensions/index.ts` — thin Pi lifecycle and synchronous rendering adapter
 - `src/domain.ts` — Effect Schema classes and immutable Data classes
-- `src/reader.ts` — cached tokenization, indexed references, and an Effect `Ref`/`Option`/Data reader state machine
+- `src/reader.ts` — single-verse token caching, on-demand reference lookup, and an Effect `Ref`/`Option`/Data reader state machine
 - `src/playback.ts` — monotonic deadlines and scope-managed Effect fiber playback
 - `src/progress.ts` — schema-validated persistence through Effect `FileSystem`
 - `src/files.ts` — scoped temporary resources and atomic file replacement
 - `src/rsvp.ts` — tokenization, pivot placement, and timing policy
 - `src/view.ts` — pure responsive Focus Window renderer
-- `data/kjv.json` — compact local Bible data
+- `data/kjv.json` — compact tuple-based local Bible data with a precomputed word count
 
 All persisted and bundled JSON is decoded and encoded with Effect Schema. Domain errors use `Schema.TaggedErrorClass`; validated records use `Schema.Class`; trusted internal aggregates use `Data.Class`. Pi requires synchronous `render()` methods and Promise-returning event callbacks, so a `ManagedRuntime` provides the Node layer at that imperative boundary. Effect tests use `@effect/vitest`, scoped resources, and `TestClock`.
 

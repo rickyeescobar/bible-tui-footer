@@ -1,4 +1,8 @@
-import { Clock, Duration, Effect, Exit, Scope } from "effect"
+import * as Clock from "effect/Clock"
+import * as Duration from "effect/Duration"
+import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
+import * as Scope from "effect/Scope"
 import type { RSVPFrame } from "./domain.js"
 import type { Reader } from "./reader.js"
 
