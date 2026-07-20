@@ -20,18 +20,30 @@ export class SavedProgress extends Schema.Class<SavedProgress>("bible-tui-footer
   wpm: Wpm,
 }) {}
 
-export type CompactVerse = readonly [
-  bookIndex: number,
+export class BookInfo extends Schema.Class<BookInfo>("bible-tui-footer/BookInfo")({
+  name: Schema.NonEmptyString,
+  verseOffset: NonNegativeInt,
+  verseCount: PositiveInt,
+  file: Schema.NonEmptyString,
+}) {}
+
+export class BibleManifest extends Schema.Class<BibleManifest>("bible-tui-footer/BibleManifest")({
+  version: Schema.Literal(1),
+  wordCount: PositiveInt,
+  totalVerses: PositiveInt,
+  books: Schema.NonEmptyArray(BookInfo),
+}) {}
+
+export type BookVerse = readonly [
   chapter: number,
   verse: number,
   text: string,
 ]
 
-/** Internal, already-validated aggregate retaining the compact on-disk representation. */
-export class Bible extends Data.Class<{
-  readonly verses: ReadonlyArray<CompactVerse>
-  readonly books: ReadonlyArray<string>
-  readonly wordCount: number
+/** Internal, already-validated data for the one book retained by the reader. */
+export class BibleBook extends Data.Class<{
+  readonly info: BookInfo
+  readonly verses: ReadonlyArray<BookVerse>
 }> {}
 
 /** Internal render value with Effect structural equality and hashing. */

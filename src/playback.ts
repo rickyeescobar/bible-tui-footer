@@ -4,6 +4,7 @@ import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Scope from "effect/Scope"
 import type { RSVPFrame } from "./domain.js"
+import type { BibleDataError } from "./errors.js"
 import type { Reader } from "./reader.js"
 
 export type PlaybackScope = Scope.Closeable
@@ -19,7 +20,7 @@ const playbackLoop = Effect.fn("playbackLoop")(function*(
   onFrame: (frame: RSVPFrame) => void,
   frame: RSVPFrame,
   previousDeadline: bigint,
-): Effect.fn.Return<void> {
+): Effect.fn.Return<void, BibleDataError> {
   yield* Effect.sync(() => onFrame(frame))
 
   const delayNanos = BigInt(frame.delayMs) * NANOS_PER_MILLI
@@ -38,11 +39,15 @@ const playbackLoop = Effect.fn("playbackLoop")(function*(
 export const startPlayback = Effect.fn("startPlayback")(function*(
   reader: Reader,
   onFrame: (frame: RSVPFrame) => void,
+  onError: (error: BibleDataError) => void,
 ): Effect.fn.Return<PlaybackScope> {
   const scope = yield* Scope.make()
   const frame = yield* reader.current
   const startedAt = yield* Clock.currentTimeNanos
-  yield* playbackLoop(reader, onFrame, frame, startedAt).pipe(Effect.forkIn(scope))
+  yield* playbackLoop(reader, onFrame, frame, startedAt).pipe(
+    Effect.catch((error) => Effect.sync(() => onError(error))),
+    Effect.forkIn(scope),
+  )
   return scope
 })
 

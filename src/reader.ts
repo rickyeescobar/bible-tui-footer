@@ -1,19 +1,21 @@
 import * as Data from "effect/Data"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
-import * as Ref from "effect/Ref"
-import { Bible, RSVPFrame, SavedProgress, Verse } from "./domain.js"
+import * as SynchronizedRef from "effect/SynchronizedRef"
+import type { BibleLibrary } from "./bible.js"
+import { type BibleBook, RSVPFrame, SavedProgress, Verse } from "./domain.js"
+import type { BibleDataError } from "./errors.js"
 import { ReaderError } from "./errors.js"
 import { makeFrame, wordsOf } from "./rsvp.js"
 
 export interface Reader {
   readonly current: Effect.Effect<RSVPFrame>
-  readonly advance: Effect.Effect<RSVPFrame>
+  readonly advance: Effect.Effect<RSVPFrame, BibleDataError>
   readonly progress: Effect.Effect<SavedProgress>
   readonly setEnabled: (enabled: boolean) => Effect.Effect<void>
   readonly setWpm: (wpm: number) => Effect.Effect<number>
-  readonly goto: (reference: string) => Effect.Effect<RSVPFrame, ReaderError>
-  readonly reset: Effect.Effect<RSVPFrame>
+  readonly goto: (reference: string) => Effect.Effect<RSVPFrame, BibleDataError | ReaderError>
+  readonly reset: Effect.Effect<RSVPFrame, BibleDataError>
 }
 
 class ParsedReference extends Data.Class<{
@@ -31,38 +33,62 @@ class RuntimeProgress extends Data.Class<{
   readonly wpm: number
 }> {}
 
-/** Holds a single tokenized verse, avoiding repeated regex work without unbounded caching. */
+/** Retains only one loaded and tokenized book/verse at a time. */
 class ReaderState extends Data.Class<{
   readonly progress: RuntimeProgress
+  readonly book: BibleBook
   readonly verse: Verse
   readonly words: ReadonlyArray<string>
 }> {}
 
-const verseAt = (bible: Bible, index: number): Verse => {
-  const [bookIndex, chapter, verse, text] = bible.verses[index]!
-  return new Verse({ book: bible.books[bookIndex]!, chapter, verse, text })
-}
-
 const toSavedProgress = (progress: RuntimeProgress): SavedProgress =>
   new SavedProgress(progress)
 
-const stateAt = (bible: Bible, progress: RuntimeProgress): ReaderState => {
-  const verse = verseAt(bible, progress.verseIndex)
+const containsVerse = (book: BibleBook, verseIndex: number): boolean =>
+  verseIndex >= book.info.verseOffset
+  && verseIndex < book.info.verseOffset + book.info.verseCount
+
+const stateInBook = (book: BibleBook, progress: RuntimeProgress): ReaderState => {
+  const localIndex = progress.verseIndex - book.info.verseOffset
+  const [chapter, verseNumber, text] = book.verses[localIndex]!
+  const verse = new Verse({ book: book.info.name, chapter, verse: verseNumber, text })
+  const words = wordsOf(text)
+  const wordIndex = Math.max(0, Math.min(Math.max(0, words.length - 1), progress.wordIndex))
   return new ReaderState({
-    progress,
+    book,
     verse,
-    words: wordsOf(verse.text),
+    words,
+    progress: new RuntimeProgress({ ...progress, wordIndex }),
   })
 }
 
-const normalize = (bible: Bible, saved: SavedProgress): RuntimeProgress => {
-  const verseIndex = Math.max(0, Math.min(bible.verses.length - 1, saved.verseIndex))
-  const text = bible.verses[verseIndex]![3]
-  const wordIndex = Math.max(0, Math.min(Math.max(0, wordsOf(text).length - 1), saved.wordIndex))
-  return new RuntimeProgress({ ...saved, verseIndex, wordIndex })
+const bookIndexAt = (library: BibleLibrary["Service"], verseIndex: number): number => {
+  const books = library.manifest.books
+  for (let index = 0; index < books.length; index++) {
+    const book = books[index]!
+    if (verseIndex < book.verseOffset + book.verseCount) return index
+  }
+  return books.length - 1
 }
 
-const frameAt = (bible: Bible, state: ReaderState): RSVPFrame => {
+const loadState = Effect.fn("Reader.loadState")(function*(
+  library: BibleLibrary["Service"],
+  progress: RuntimeProgress,
+) {
+  const book = yield* library.loadBook(bookIndexAt(library, progress.verseIndex))
+  return stateInBook(book, progress)
+})
+
+const stateAt = (
+  library: BibleLibrary["Service"],
+  currentBook: BibleBook,
+  progress: RuntimeProgress,
+): Effect.Effect<ReaderState, BibleDataError> =>
+  containsVerse(currentBook, progress.verseIndex)
+    ? Effect.succeed(stateInBook(currentBook, progress))
+    : loadState(library, progress)
+
+const frameAt = (library: BibleLibrary["Service"], state: ReaderState): RSVPFrame => {
   const { progress, words } = state
   const word = words[progress.wordIndex] ?? words[0] ?? ""
   return makeFrame({
@@ -72,50 +98,36 @@ const frameAt = (bible: Bible, state: ReaderState): RSVPFrame => {
     verseIndex: progress.verseIndex,
     wordIndex: progress.wordIndex,
     wordsRead: progress.wordsRead,
-    totalWords: bible.wordCount,
+    totalWords: library.manifest.wordCount,
     wpm: progress.wpm,
   })
 }
 
-const advanceState = (bible: Bible, state: ReaderState): ReaderState => {
+const advanceState = (
+  library: BibleLibrary["Service"],
+  state: ReaderState,
+): Effect.Effect<ReaderState, BibleDataError> => {
   const { progress, words } = state
   if (progress.wordIndex + 1 < words.length) {
-    return new ReaderState({
+    return Effect.succeed(new ReaderState({
       ...state,
       progress: new RuntimeProgress({
         ...progress,
         wordIndex: progress.wordIndex + 1,
         wordsRead: progress.wordsRead + 1,
       }),
-    })
+    }))
   }
 
-  const verseIndex = progress.verseIndex + 1 < bible.verses.length ? progress.verseIndex + 1 : 0
-  return stateAt(bible, new RuntimeProgress({
+  const verseIndex = progress.verseIndex + 1 < library.manifest.totalVerses
+    ? progress.verseIndex + 1
+    : 0
+  return stateAt(library, state.book, new RuntimeProgress({
     ...progress,
     verseIndex,
     wordIndex: 0,
     wordsRead: progress.wordsRead + 1,
   }))
-}
-
-const findReferenceIndex = (
-  bible: Bible,
-  requested: ParsedReference,
-  verse: number,
-): Option.Option<number> => {
-  const requestedBook = requested.book.trim().toLowerCase()
-  for (let index = 0; index < bible.verses.length; index++) {
-    const [bookIndex, chapter, verseNumber] = bible.verses[index]!
-    if (
-      chapter === requested.chapter
-      && verseNumber === verse
-      && bible.books[bookIndex]?.toLowerCase() === requestedBook
-    ) {
-      return Option.some(index)
-    }
-  }
-  return Option.none()
 }
 
 const parseReference = (reference: string): Option.Option<ParsedReference> => {
@@ -136,21 +148,27 @@ const parseReference = (reference: string): Option.Option<ParsedReference> => {
 }
 
 export const makeReader = Effect.fn("makeReader")(function*(
-  bible: Bible,
+  library: BibleLibrary["Service"],
   saved: SavedProgress,
-): Effect.fn.Return<Reader> {
-  const initialProgress = normalize(bible, saved)
-  const state = yield* Ref.make(stateAt(bible, initialProgress))
+): Effect.fn.Return<Reader, BibleDataError> {
+  const verseIndex = Math.max(0, Math.min(library.manifest.totalVerses - 1, saved.verseIndex))
+  const initialProgress = new RuntimeProgress({ ...saved, verseIndex })
+  const initialState = yield* loadState(library, initialProgress)
+  const state = yield* SynchronizedRef.make(initialState)
 
-  const current = Ref.get(state).pipe(Effect.map((readerState) => frameAt(bible, readerState)))
-  const advance = Ref.modify(state, (readerState) => {
-    const next = advanceState(bible, readerState)
-    return [frameAt(bible, next), next] as const
-  })
-  const progress = Ref.get(state).pipe(Effect.map((readerState) => toSavedProgress(readerState.progress)))
+  const current = SynchronizedRef.get(state).pipe(
+    Effect.map((readerState) => frameAt(library, readerState)),
+  )
+  const advance = SynchronizedRef.modifyEffect(state, (readerState) =>
+    advanceState(library, readerState).pipe(
+      Effect.map((next) => [frameAt(library, next), next] as const),
+    ))
+  const progress = SynchronizedRef.get(state).pipe(
+    Effect.map((readerState) => toSavedProgress(readerState.progress)),
+  )
 
   const setEnabled = Effect.fn("Reader.setEnabled")((enabled: boolean) =>
-    Ref.update(
+    SynchronizedRef.update(
       state,
       (readerState) => new ReaderState({
         ...readerState,
@@ -160,7 +178,7 @@ export const makeReader = Effect.fn("makeReader")(function*(
 
   const setWpm = Effect.fn("Reader.setWpm")((wpm: number) => {
     const normalized = Math.max(100, Math.min(1_200, Math.round(wpm)))
-    return Ref.update(
+    return SynchronizedRef.update(
       state,
       (readerState) => new ReaderState({
         ...readerState,
@@ -176,31 +194,41 @@ export const makeReader = Effect.fn("makeReader")(function*(
     }
 
     const requested = parsed.value
-    const verse = Option.getOrElse(requested.verse, () => 1)
-    const index = findReferenceIndex(bible, requested, verse)
-    if (Option.isNone(index)) {
+    const bookIndex = library.manifest.books.findIndex(
+      (book) => book.name.toLowerCase() === requested.book.trim().toLowerCase(),
+    )
+    if (bookIndex < 0) {
       return yield* new ReaderError({ message: `Passage not found: ${reference}` })
     }
 
-    return yield* Ref.modify(state, (readerState) => {
-      const next = stateAt(bible, new RuntimeProgress({
+    const book = yield* library.loadBook(bookIndex)
+    const verseNumber = Option.getOrElse(requested.verse, () => 1)
+    const localIndex = book.verses.findIndex(
+      ([chapter, verse]) => chapter === requested.chapter && verse === verseNumber,
+    )
+    if (localIndex < 0) {
+      return yield* new ReaderError({ message: `Passage not found: ${reference}` })
+    }
+
+    return yield* SynchronizedRef.modify(state, (readerState) => {
+      const next = stateInBook(book, new RuntimeProgress({
         ...readerState.progress,
-        verseIndex: index.value,
+        verseIndex: book.info.verseOffset + localIndex,
         wordIndex: 0,
       }))
-      return [frameAt(bible, next), next] as const
+      return [frameAt(library, next), next] as const
     })
   })
 
-  const reset = Ref.modify(state, (readerState) => {
-    const next = stateAt(bible, new RuntimeProgress({
+  const reset = SynchronizedRef.modifyEffect(state, (readerState) =>
+    stateAt(library, readerState.book, new RuntimeProgress({
       ...readerState.progress,
       verseIndex: 0,
       wordIndex: 0,
       wordsRead: 0,
-    }))
-    return [frameAt(bible, next), next] as const
-  })
+    })).pipe(
+      Effect.map((next) => [frameAt(library, next), next] as const),
+    ))
 
   return { current, advance, progress, setEnabled, setWpm, goto, reset }
 })

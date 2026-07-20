@@ -5,32 +5,40 @@ import * as Equal from "effect/Equal"
 import * as FileSystem from "effect/FileSystem"
 import { tmpdir } from "node:os"
 import { dirname, join } from "node:path"
-import { loadBible } from "../src/bible.js"
+import { makeBibleLibrary } from "../src/bible.js"
 import { SavedProgress, defaultProgress } from "../src/domain.js"
 import { loadProgress, saveProgress } from "../src/progress.js"
 
-const makeTemporaryFile = Effect.fn("makeTemporaryFile")(function*(name: string) {
+const makeTemporaryDirectory = Effect.fn("makeTemporaryDirectory")(function*() {
   const fs = yield* FileSystem.FileSystem
-  const directory = yield* fs.makeTempDirectoryScoped({
+  return yield* fs.makeTempDirectoryScoped({
     directory: tmpdir(),
     prefix: "bible-tui-footer-test-",
   })
-  return join(directory, name)
 })
 
 const withFileSystem = <A, E, R>(effect: Effect.Effect<A, E, R | FileSystem.FileSystem>) =>
   effect.pipe(Effect.provide(NodeFileSystem.layer))
 
 describe("Schema validation", () => {
-  it.effect("rejects compact Bible data with an invalid book index", () =>
+  it.effect("rejects book data that does not match its manifest", () =>
     Effect.gen(function*() {
       const fs = yield* FileSystem.FileSystem
-      const path = yield* makeTemporaryFile("bible.json")
-      yield* fs.writeFileString(
-        path,
-        JSON.stringify({ books: ["Genesis"], wordCount: 3, verses: [[1, 1, 1, "In the beginning"]] }),
-      )
-      const exit = yield* Effect.exit(loadBible(path))
+      const directory = yield* makeTemporaryDirectory()
+      yield* fs.makeDirectory(join(directory, "books"))
+      yield* fs.writeFileString(join(directory, "manifest.json"), JSON.stringify({
+        version: 1,
+        wordCount: 3,
+        totalVerses: 1,
+        books: [{ name: "Genesis", verseOffset: 0, verseCount: 1, file: "books/0.json" }],
+      }))
+      yield* fs.writeFileString(join(directory, "books/0.json"), JSON.stringify({
+        bookIndex: 1,
+        verses: [[1, 1, "In the beginning"]],
+      }))
+
+      const library = yield* makeBibleLibrary(directory)
+      const exit = yield* Effect.exit(library.loadBook(0))
       assert.strictEqual(exit._tag, "Failure")
     }).pipe(
       Effect.scoped,
@@ -40,7 +48,8 @@ describe("Schema validation", () => {
   it.effect("falls back to defaults for malformed progress", () =>
     Effect.gen(function*() {
       const fs = yield* FileSystem.FileSystem
-      const path = yield* makeTemporaryFile("progress.json")
+      const directory = yield* makeTemporaryDirectory()
+      const path = join(directory, "progress.json")
       yield* fs.writeFileString(path, JSON.stringify({ enabled: "yes", wpm: -1 }))
       const progress = yield* loadProgress(path)
       assert.isTrue(Equal.equals(progress, defaultProgress))
@@ -52,7 +61,8 @@ describe("Schema validation", () => {
   it.effect("round-trips schema-backed progress", () =>
     Effect.gen(function*() {
       const fs = yield* FileSystem.FileSystem
-      const path = yield* makeTemporaryFile("progress.json")
+      const directory = yield* makeTemporaryDirectory()
+      const path = join(directory, "progress.json")
       const expected = new SavedProgress({
         enabled: true,
         verseIndex: 10,

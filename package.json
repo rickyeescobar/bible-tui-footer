@@ -13,27 +13,25 @@
   ],
   "license": "MIT",
   "files": [
-    "extensions",
-    "src",
+    "dist",
     "data",
     "README.md",
     "LICENSE",
-    "NOTICE"
+    "NOTICE",
+    "THIRD_PARTY_LICENSES.md"
   ],
   "pi": {
     "extensions": [
-      "./extensions/index.ts"
+      "./dist/index.js"
     ]
   },
   "scripts": {
+    "build": "esbuild extensions/index.ts --bundle --platform=node --format=esm --target=node24 --outfile=dist/index.js --external:@earendil-works/pi-coding-agent --external:@earendil-works/pi-tui --legal-comments=eof",
+    "build:data": "tsx scripts/compact-bible.ts ../d4ilybread/data/kjv-bible.json data",
     "check": "tsc --noEmit",
     "test": "vitest run",
-    "build:data": "tsx scripts/compact-bible.ts ../d4ilybread/data/kjv-bible.json data/kjv.json",
-    "prepare": "effect-tsgo patch"
-  },
-  "dependencies": {
-    "@effect/platform-node": "4.0.0-beta.99",
-    "effect": "4.0.0-beta.99"
+    "prepare": "effect-tsgo patch && npm run build",
+    "prepublishOnly": "npm run check && npm test"
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*",
@@ -42,12 +40,15 @@
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "^0.80.10",
     "@earendil-works/pi-tui": "^0.80.10",
+    "@effect/platform-node": "4.0.0-beta.99",
+    "@effect/tsgo": "0.24.2",
     "@effect/vitest": "4.0.0-beta.99",
     "@types/node": "24.13.3",
+    "effect": "4.0.0-beta.99",
+    "esbuild": "0.28.1",
     "tsx": "4.23.1",
     "typescript": "7.0.2",
-    "vitest": "4.1.10",
-    "@effect/tsgo": "0.24.2"
+    "vitest": "4.1.10"
   },
   "engines": {
     "node": ">=24.18.0 <25"

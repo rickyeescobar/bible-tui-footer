@@ -3,12 +3,13 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
+import * as Layer from "effect/Layer"
 import * as ManagedRuntime from "effect/ManagedRuntime"
 import * as Semaphore from "effect/Semaphore"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { loadBible } from "../src/bible.js"
+import { BibleLibrary } from "../src/bible.js"
 import type { RSVPFrame } from "../src/domain.js"
 import { startPlayback, stopPlayback, type PlaybackScope } from "../src/playback.js"
 import { loadProgress, saveProgress } from "../src/progress.js"
@@ -16,7 +17,7 @@ import { makeReader, type Reader } from "../src/reader.js"
 import { renderFocusWindow } from "../src/view.js"
 
 const WIDGET_ID = "bible-tui-footer"
-const BIBLE_PATH = fileURLToPath(new URL("../data/kjv.json", import.meta.url))
+const BIBLE_PATH = fileURLToPath(new URL("../data", import.meta.url))
 const STATE_PATH = join(
   process.env.XDG_STATE_HOME ?? join(homedir(), ".local", "state"),
   "bible-tui-footer",
@@ -24,8 +25,11 @@ const STATE_PATH = join(
 )
 
 export default function bibleTuiFooter(pi: ExtensionAPI) {
-  const runtime = ManagedRuntime.make(NodeFileSystem.layer)
-  const run = <A, E>(effect: Effect.Effect<A, E, FileSystem.FileSystem>): Promise<A> =>
+  const runtimeLayer = BibleLibrary.layer(BIBLE_PATH).pipe(
+    Layer.provideMerge(NodeFileSystem.layer),
+  )
+  const runtime = ManagedRuntime.make(runtimeLayer)
+  const run = <A, E>(effect: Effect.Effect<A, E, BibleLibrary | FileSystem.FileSystem>): Promise<A> =>
     runtime.runPromise(effect)
   let reader: Reader | undefined
   let frame: RSVPFrame | undefined
@@ -41,11 +45,11 @@ export default function bibleTuiFooter(pi: ExtensionAPI) {
     if (initialization !== undefined) return initialization
 
     const setup = Effect.gen(function* () {
-      const [bible, progress] = yield* Effect.all([
-        loadBible(BIBLE_PATH),
+      const [library, progress] = yield* Effect.all([
+        BibleLibrary,
         loadProgress(STATE_PATH),
       ])
-      const initializedReader = yield* makeReader(bible, progress)
+      const initializedReader = yield* makeReader(library, progress)
       if (active) reader = initializedReader
     }).pipe(
       Effect.catchCause((cause) => Effect.sync(() => {
@@ -89,39 +93,53 @@ export default function bibleTuiFooter(pi: ExtensionAPI) {
     ))
 
   const start = Effect.fn("BibleTuiFooter.start")(function*(ctx: ExtensionContext) {
-      yield* Effect.promise(() => initialize(ctx))
-      if (ctx.mode !== "tui" || reader === undefined) return
+    yield* Effect.promise(() => initialize(ctx))
+    if (ctx.mode !== "tui" || reader === undefined) return
 
-      const initializedReader = reader
-      const progress = yield* initializedReader.progress
-      if (!progress.enabled) return
+    const initializedReader = reader
+    const progress = yield* initializedReader.progress
+    if (!progress.enabled) return
 
-      yield* playbackLock.withPermit(Effect.gen(function*() {
-        yield* stopPlayback(playback)
-        playback = undefined
-        frame = yield* initializedReader.current
+    yield* playbackLock.withPermit(Effect.gen(function*() {
+      yield* stopPlayback(playback)
+      playback = undefined
+      frame = yield* initializedReader.current
 
-        ctx.ui.setWidget(WIDGET_ID, (tui, theme) => {
-          requestRender = () => tui.requestRender()
-          return {
-            invalidate() {},
-            render(width: number): string[] {
-              if (frame === undefined) return []
-              return [...renderFocusWindow(frame, width, {
-                accent: (text) => theme.fg("accent", text),
-                dim: (text) => theme.fg("dim", text),
-                muted: (text) => theme.fg("muted", text),
-                bold: (text) => theme.bold(text),
-              })]
-            },
-          }
-        }, { placement: "aboveEditor" })
+      ctx.ui.setWidget(WIDGET_ID, (tui, theme) => {
+        let cachedFrame: RSVPFrame | undefined
+        let cachedWidth = -1
+        let cachedLines: Array<string> = []
+        requestRender = () => tui.requestRender()
+        return {
+          invalidate() {
+            cachedFrame = undefined
+          },
+          render(width: number): string[] {
+            if (frame === undefined) return []
+            if (cachedFrame === frame && cachedWidth === width) return cachedLines
 
-        playback = yield* startPlayback(initializedReader, (nextFrame) => {
+            cachedFrame = frame
+            cachedWidth = width
+            cachedLines = [...renderFocusWindow(frame, width, {
+              accent: (text) => theme.fg("accent", text),
+              dim: (text) => theme.fg("dim", text),
+              muted: (text) => theme.fg("muted", text),
+              bold: (text) => theme.bold(text),
+            })]
+            return cachedLines
+          },
+        }
+      }, { placement: "aboveEditor" })
+
+      playback = yield* startPlayback(
+        initializedReader,
+        (nextFrame) => {
           frame = nextFrame
           requestRender()
-        })
-      }))
+        },
+        (error) => ctx.ui.notify(`Bible TUI Footer playback failed: ${String(error)}`, "error"),
+      )
+    }))
   })
 
   pi.on("session_start", (_event, ctx) => {
