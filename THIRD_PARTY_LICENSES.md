@@ -5,12 +5,6 @@ The production bundle includes portions of the following MIT-licensed projects:
 - `effect`, `@effect/platform-node`, and `@effect/platform-node-shared`
   - Copyright (c) 2023 Effectful Technologies Inc
   - https://github.com/Effect-TS/effect
-- `fast-check`
-  - Copyright (c) 2017 Nicolas DUBIEN
-  - https://github.com/dubzzz/fast-check
-- `pure-rand`
-  - Copyright (c) 2018 Nicolas DUBIEN
-  - https://github.com/dubzzz/pure-rand
 
 ## MIT License
 
