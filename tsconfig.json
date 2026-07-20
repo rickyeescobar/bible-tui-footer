@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "types": ["node"],
+    "plugins": [
+      // ... other LSPs (if any) and as last
+      {
+        "name": "@effect/language-service"
+      }
+    ]
+  },
+  "include": [
+    "extensions/**/*.ts",
+    "src/**/*.ts",
+    "scripts/**/*.ts",
+    "test/**/*.ts"
+  ],
+"$schema": "./node_modules/@effect/tsgo/schema.json"
+}

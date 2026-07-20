@@ -1,0 +1,14 @@
+allowBuilds:
+  '@google/genai': false
+  esbuild: true
+  msgpackr-extract: false
+  protobufjs: false
+minimumReleaseAgeExclude:
+  - '@effect/tsgo-darwin-arm64@0.24.2'
+  - '@effect/tsgo-darwin-x64@0.24.2'
+  - '@effect/tsgo-linux-arm64@0.24.2'
+  - '@effect/tsgo-linux-arm@0.24.2'
+  - '@effect/tsgo-linux-x64@0.24.2'
+  - '@effect/tsgo-win32-arm64@0.24.2'
+  - '@effect/tsgo-win32-x64@0.24.2'
+  - '@effect/tsgo@0.24.2'

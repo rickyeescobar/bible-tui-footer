@@ -1,0 +1,16 @@
+Bible TUI Footer includes a compact copy of the King James Version (Authorized
+Version). The original text was obtained from Project Gutenberg:
+
+  The King James Version of the Bible, Project Gutenberg eBook #10
+  https://www.gutenberg.org/ebooks/10
+
+Bible TUI Footer restructures the text as compact JSON for local RSVP playback.
+It is not affiliated with or endorsed by Project Gutenberg.
+
+Project Gutenberg identifies this eBook as public domain in the United States.
+Rights and permissions relating to the Authorized Version can differ in other
+jurisdictions, including the United Kingdom. Users outside the United States
+should verify the laws of their jurisdiction before redistributing the text.
+
+The MIT License applies to Bible TUI Footer's software and does not itself grant
+rights to third-party or separately governed scripture text.
